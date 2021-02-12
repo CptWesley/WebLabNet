@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Http;
 using System.Text;
@@ -80,11 +81,49 @@ namespace WebLabNet
         }
 
         /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="student">The student.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date of the submission.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, DateTime saveDate, string apiKey)
+        {
+            if (student is null)
+            {
+                throw new ArgumentNullException(nameof(student));
+            }
+
+            return PushGradeAsync(student.NetId, grade, comment, saveDate, apiKey);
+        }
+
+        /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="student">The student.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date of the submission.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, long saveDate, string apiKey)
+        {
+            if (student is null)
+            {
+                throw new ArgumentNullException(nameof(student));
+            }
+
+            return PushGradeAsync(student.NetId, grade, comment, saveDate, apiKey);
+        }
+
+        /// <summary>
         /// Gets the submissions.
         /// </summary>
         /// <param name="assignmentId">The id used by weblab for the assignment.</param>
         /// <returns>The submissions.</returns>
-        public Task<IEnumerable<Submission>> GetSubmissions(int assignmentId)
+        public Task<IEnumerable<SubmissionInfo>> GetSubmissions(int assignmentId)
             => GetSubmissions(assignmentId.ToString(CultureInfo.InvariantCulture));
 
         /// <summary>
@@ -92,16 +131,80 @@ namespace WebLabNet
         /// </summary>
         /// <param name="assignmentId">The id used by weblab for the assignment.</param>
         /// <returns>The submissions.</returns>
-        public async Task<IEnumerable<Submission>> GetSubmissions(string assignmentId)
+        public async Task<IEnumerable<SubmissionInfo>> GetSubmissions(string assignmentId)
         {
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://weblab.tudelft.nl/assignment/{assignmentId}/submissions");
             request.Headers.Add("Cookie", Cookie);
             using HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false);
             string result = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            Console.WriteLine(result);
-
-            return new Submission[0];
+            return await ParserHelper.ParseSubmissions(result, assignmentId).ConfigureAwait(false);
         }
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="url">The URL.</param>
+        /// <returns>The submitted code.</returns>
+        [SuppressMessage("Microsoft.Design", "CA1054", Justification = "We want to maintain the url as a string.")]
+        public async Task<string> GetSubmissionCode(string url)
+        {
+            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Add("Cookie", Cookie);
+            using HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false);
+            string result = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            return await ParserHelper.ParseSubmission(result).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="submission">The submission to retrieve.</param>
+        /// <returns>The submitted code.</returns>
+        public Task<string> GetSubmissionCode(SubmissionInfo submission)
+        {
+            if (submission is null)
+            {
+                throw new ArgumentNullException(nameof(submission));
+            }
+
+            return GetSubmissionCode(submission.Url);
+        }
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="assignmentId">The ID of the assingment.</param>
+        /// <param name="weblabId">The ID of the weblab user.</param>
+        /// <returns>The submitted code.</returns>
+        public Task<string> GetSubmissionCode(string assignmentId, string weblabId)
+            => GetSubmissionCode($"https://weblab.tudelft.nl/x/y/assignment/{assignmentId}/submission/{weblabId}");
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="assignmentId">The ID of the assingment.</param>
+        /// <param name="weblabId">The ID of the weblab user.</param>
+        /// <returns>The submitted code.</returns>
+        public Task<string> GetSubmissionCode(int assignmentId, int weblabId)
+            => GetSubmissionCode(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId.ToString(CultureInfo.InvariantCulture));
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="assignmentId">The ID of the assingment.</param>
+        /// <param name="weblabId">The ID of the weblab user.</param>
+        /// <returns>The submitted code.</returns>
+        public Task<string> GetSubmissionCode(string assignmentId, int weblabId)
+            => GetSubmissionCode(assignmentId, weblabId.ToString(CultureInfo.InvariantCulture));
+
+        /// <summary>
+        /// Gets the submitted code at the given url.
+        /// </summary>
+        /// <param name="assignmentId">The ID of the assingment.</param>
+        /// <param name="weblabId">The ID of the weblab user.</param>
+        /// <returns>The submitted code.</returns>
+        public Task<string> GetSubmissionCode(int assignmentId, string weblabId)
+            => GetSubmissionCode(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId);
 
         /// <inheritdoc/>
         public void Dispose()
