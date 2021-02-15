@@ -5,6 +5,16 @@
     <LangVersion>9</LangVersion>
     <CodeAnalysisRuleSet>../Ruleset.ruleset</CodeAnalysisRuleSet>
     <DocumentationFile>bin/$(AssemblyName).xml</DocumentationFile>
+	<Authors>Wesley Baartman</Authors>
+    <PackageProjectUrl>https://github.com/CptWesley/WebLabNet</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/CptWesley/WebLabNet</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Description></Description>
+    <PackageTags></PackageTags>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <Version>0.0.1</Version>
+    <Copyright></Copyright>
   </PropertyGroup>
   
   <ItemGroup>
