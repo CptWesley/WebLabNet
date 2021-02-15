@@ -23,14 +23,10 @@ namespace WebLabNet.Example
             };
 
             IEnumerable<SubmissionInfo> submissions = await webLab.GetSubmissions(67542).ConfigureAwait(false);
-            SubmissionInfo submission = submissions.First(x => x.Student.NetId == "wjbaartman");
-            string code = await webLab.GetSubmissionCode(submission).ConfigureAwait(false);
 
-            double grade = 5.0;
-
-            await webLab.PushGradeAsync(submission.Student.NetId, grade, "blaaaaa", DateTime.UtcNow, "apikeyhier").ConfigureAwait(false);
-
-            Console.WriteLine(code);
+            SubmissionInfo submissionInfo = submissions.First(x => x.Student.NetId == "wjbaartman");
+            Submission submission = await webLab.GetSubmission(submissionInfo).ConfigureAwait(false);
+            Console.WriteLine(submission);
         }
     }
 }
