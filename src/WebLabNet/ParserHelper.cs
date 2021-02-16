@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -34,7 +36,7 @@ namespace WebLabNet
             {
                 if (child is IHtmlTableRowElement row)
                 {
-                    result.Add(ToSubmission(row, assignmentId));
+                    result.Add(ParseSubmissionInfo(document, row, assignmentId));
                 }
             }
 
@@ -68,10 +70,14 @@ namespace WebLabNet
 
             Student student = new Student(name, netId, studentId, weblabId);
 
-            return new Submission(student, solution, test);
+            IElement savedString = document.All.First(x => x.TextContent == "Last saved at");
+            string dateString = savedString.ParentElement.Children[1].Children[0].Text().Trim();
+            DateTime date = DateTime.Parse(dateString, CultureInfo.InvariantCulture);
+            return new Submission(student, solution, test, date);
         }
 
-        private static SubmissionInfo ToSubmission(IHtmlTableRowElement element, string assignmentId)
+        [SuppressMessage("Microsoft.Design", "CA1031", Justification = "We just want to attempt to retrieve the date.")]
+        private static SubmissionInfo ParseSubmissionInfo(IDocument document, IHtmlTableRowElement element, string assignmentId)
         {
             string url = element.Children[1].Children[0].GetAttribute("href");
             StudentVerbose student = ToStudent(element.Children[0], url);
@@ -90,7 +96,53 @@ namespace WebLabNet
             bool completed = element.Children[3].Children.Any(x => x.ClassList.Contains("text-success"));
             bool passed = element.Children[5].Children.Any(x => x.ClassList.Contains("text-success"));
             double grade = GetGrade(element.Children[4]);
-            return new SubmissionInfo(student, assignmentId, url, started, spectests, completed, grade, passed);
+
+            Guid guid = Guid.Empty;
+            DateTime date = DateTime.MinValue;
+
+            if (started)
+            {
+                string? guidString = element.Children[4].Children.FirstOrDefault(x => x.Id != null && x.Id.StartsWith("status-", StringComparison.Ordinal))?.Id?.Substring(7);
+                if (guidString != null)
+                {
+                    guid = Guid.Parse(guidString);
+                }
+
+                string searchPattern = $"netid:{student.NetId} studnr:{student.StudentId}. Opens in new window";
+                IElement? foundInfo = document.All.FirstOrDefault(x => x.Id == guidString);
+                if (foundInfo != null)
+                {
+                    try
+                    {
+                        date = ExtractDate(foundInfo);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            return new SubmissionInfo(student, guid, assignmentId, url, started, spectests, completed, grade, passed, date);
+        }
+
+        private static DateTime ExtractDate(IElement element)
+        {
+            element = element
+                .Children[0]
+                .Children[0]
+                .Children[1]
+                .Children[1]
+                .Children[0]
+                .Children[1]
+                .Children[4];
+
+            string text = element.Text();
+
+            Match match = Regex.Match(text, @"saved(.+)before");
+            string dateString = match.Groups[1].Value.Trim();
+            DateTime date = DateTime.Parse(dateString, CultureInfo.InvariantCulture);
+
+            return date;
         }
 
         private static double GetGrade(IElement element)

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace WebLabNet
 {
@@ -13,20 +14,23 @@ namespace WebLabNet
     /// <param name="Student">The student who made the submission.</param>
     /// <param name="SolutionCode">The solution code of the submission.</param>
     /// <param name="TestCode">The test code of the submission.</param>
-    public record Submission(Student Student, string SolutionCode, string TestCode);
+    /// <param name="Saved">The last time the submission was saved.</param>
+    public record Submission(Student Student, string SolutionCode, string TestCode, DateTime Saved);
 
     /// <summary>
     /// Represents a submission.
     /// </summary>
     /// <param name="Student">The student who made the submission.</param>
+    /// <param name="Guid">The guid of this entry.</param>
     /// <param name="AssignmentId">The ID of the assignment.</param>
     /// <param name="Url">The URL of the submission.</param>
     /// <param name="Started">Indicates that the student has started the assignment.</param>
     /// <param name="Completed">Indicates that the student has completed the assignment.</param>
     /// <param name="Grade">The latest grade for the submission.</param>
     /// <param name="Passed">Indicates that the student has passed the assignment.</param>
+    /// <param name="Saved">The last time the submission was saved.</param>
     [SuppressMessage("Microsoft.Design", "CA1054", Justification = "We want to maintain the url as a string.")]
-    public record SubmissionInfo(StudentVerbose Student, string AssignmentId, string Url, bool Started, int SpecTests, bool Completed, double Grade, bool Passed);
+    public record SubmissionInfo(StudentVerbose Student, Guid Guid, string AssignmentId, string Url, bool Started, int SpecTests, bool Completed, double Grade, bool Passed, DateTime Saved);
 
     /// <summary>
     /// Represents a student.
