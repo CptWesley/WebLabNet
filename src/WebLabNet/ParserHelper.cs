@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Web;
 using AngleSharp;
 using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
@@ -53,8 +54,8 @@ namespace WebLabNet
 
             string[] snippets = document.All.Where(x => x.ClassList.Contains("inputTextarea")).Select(x => x.InnerHtml).ToArray();
 
-            string solution = snippets[0];
-            string test = snippets[1];
+            string solution = HttpUtility.HtmlDecode(snippets[0]);
+            string test = HttpUtility.HtmlDecode(snippets[1]);
 
             IElement studentElement = document.All.First(x => x.HasAttribute("href") && x.GetAttribute("href").Contains("dossier"));
 
