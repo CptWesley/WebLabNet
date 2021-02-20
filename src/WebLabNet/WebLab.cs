@@ -123,15 +123,15 @@ namespace WebLabNet
         /// </summary>
         /// <param name="assignmentId">The id used by weblab for the assignment.</param>
         /// <returns>The submissions.</returns>
-        public Task<IEnumerable<SubmissionInfo>> GetSubmissions(int assignmentId)
-            => GetSubmissions(assignmentId.ToString(CultureInfo.InvariantCulture));
+        public Task<IEnumerable<SubmissionInfo>> GetSubmissionsAsync(int assignmentId)
+            => GetSubmissionsAsync(assignmentId.ToString(CultureInfo.InvariantCulture));
 
         /// <summary>
         /// Gets the submissions.
         /// </summary>
         /// <param name="assignmentId">The id used by weblab for the assignment.</param>
         /// <returns>The submissions.</returns>
-        public async Task<IEnumerable<SubmissionInfo>> GetSubmissions(string assignmentId)
+        public async Task<IEnumerable<SubmissionInfo>> GetSubmissionsAsync(string assignmentId)
         {
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://weblab.tudelft.nl/assignment/{assignmentId}/submissions");
             request.Headers.Add("Cookie", Cookie);
@@ -146,7 +146,7 @@ namespace WebLabNet
         /// <param name="url">The URL.</param>
         /// <returns>The submitted code.</returns>
         [SuppressMessage("Microsoft.Design", "CA1054", Justification = "We want to maintain the url as a string.")]
-        public async Task<Submission> GetSubmission(string url)
+        public async Task<Submission> GetSubmissionAsync(string url)
         {
             using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Add("Cookie", Cookie);
@@ -160,14 +160,14 @@ namespace WebLabNet
         /// </summary>
         /// <param name="submission">The submission to retrieve.</param>
         /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmission(SubmissionInfo submission)
+        public Task<Submission> GetSubmissionAsync(SubmissionInfo submission)
         {
             if (submission is null)
             {
                 throw new ArgumentNullException(nameof(submission));
             }
 
-            return GetSubmission(submission.Url);
+            return GetSubmissionAsync(submission.Url);
         }
 
         /// <summary>
@@ -176,8 +176,8 @@ namespace WebLabNet
         /// <param name="assignmentId">The ID of the assingment.</param>
         /// <param name="weblabId">The ID of the weblab user.</param>
         /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmission(string assignmentId, string weblabId)
-            => GetSubmission($"https://weblab.tudelft.nl/x/y/assignment/{assignmentId}/submission/{weblabId}");
+        public Task<Submission> GetSubmissionAsync(string assignmentId, string weblabId)
+            => GetSubmissionAsync($"https://weblab.tudelft.nl/x/y/assignment/{assignmentId}/submission/{weblabId}");
 
         /// <summary>
         /// Gets the submitted code at the given url.
@@ -185,8 +185,8 @@ namespace WebLabNet
         /// <param name="assignmentId">The ID of the assingment.</param>
         /// <param name="weblabId">The ID of the weblab user.</param>
         /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmission(int assignmentId, int weblabId)
-            => GetSubmission(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId.ToString(CultureInfo.InvariantCulture));
+        public Task<Submission> GetSubmissionAsync(int assignmentId, int weblabId)
+            => GetSubmissionAsync(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId.ToString(CultureInfo.InvariantCulture));
 
         /// <summary>
         /// Gets the submitted code at the given url.
@@ -194,8 +194,8 @@ namespace WebLabNet
         /// <param name="assignmentId">The ID of the assingment.</param>
         /// <param name="weblabId">The ID of the weblab user.</param>
         /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmission(string assignmentId, int weblabId)
-            => GetSubmission(assignmentId, weblabId.ToString(CultureInfo.InvariantCulture));
+        public Task<Submission> GetSubmissionAsync(string assignmentId, int weblabId)
+            => GetSubmissionAsync(assignmentId, weblabId.ToString(CultureInfo.InvariantCulture));
 
         /// <summary>
         /// Gets the submitted code at the given url.
@@ -203,8 +203,8 @@ namespace WebLabNet
         /// <param name="assignmentId">The ID of the assingment.</param>
         /// <param name="weblabId">The ID of the weblab user.</param>
         /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmission(int assignmentId, string weblabId)
-            => GetSubmission(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId);
+        public Task<Submission> GetSubmissionAsync(int assignmentId, string weblabId)
+            => GetSubmissionAsync(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId);
 
         /// <inheritdoc/>
         public void Dispose()

@@ -22,10 +22,10 @@ namespace WebLabNet.Example
                 Cookie = File.ReadAllText("cookie.txt"),
             };
 
-            IEnumerable<SubmissionInfo> submissions = await webLab.GetSubmissions(67542).ConfigureAwait(false);
+            IEnumerable<SubmissionInfo> submissions = await webLab.GetSubmissionsAsync(67542).ConfigureAwait(false);
 
             SubmissionInfo submissionInfo = submissions.First(x => x.Student.NetId == "wjbaartman");
-            Submission submission = await webLab.GetSubmission(submissionInfo).ConfigureAwait(false);
+            Submission submission = await webLab.GetSubmissionAsync(submissionInfo).ConfigureAwait(false);
             Console.WriteLine(submission);
         }
     }
