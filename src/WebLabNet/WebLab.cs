@@ -48,9 +48,10 @@ namespace WebLabNet
         /// <param name="grade">The grade.</param>
         /// <param name="comment">The comment.</param>
         /// <param name="saveDate">The save date.</param>
+        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
         /// <param name="apiKey">The API key.</param>
         /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, long saveDate, string apiKey)
+        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, long saveDate, int keepLastNComments, string apiKey)
         {
             Dictionary<string, string> values = new Dictionary<string, string>()
                 {
@@ -58,6 +59,7 @@ namespace WebLabNet
                     { "grade", grade.ToString(CultureInfo.InvariantCulture) },
                     { "comment", comment },
                     { "saveDate", saveDate.ToString(CultureInfo.InvariantCulture) },
+                    { "keepLastNComments", keepLastNComments.ToString(CultureInfo.InvariantCulture) },
                 };
 
             string json = JsonConvert.SerializeObject(values);
@@ -72,13 +74,78 @@ namespace WebLabNet
         /// <param name="grade">The grade.</param>
         /// <param name="comment">The comment.</param>
         /// <param name="saveDate">The save date of the submission.</param>
+        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey)
+        {
+            long epoch = (long)(saveDate.ToUniversalTime() - new DateTime(1970, 1, 1)).TotalMilliseconds;
+            return PushGradeAsync(netId, grade, comment, epoch, keepLastNComments, apiKey);
+        }
+
+        /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="student">The student.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date of the submission.</param>
+        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey)
+        {
+            if (student is null)
+            {
+                throw new ArgumentNullException(nameof(student));
+            }
+
+            return PushGradeAsync(student.NetId, grade, comment, saveDate, keepLastNComments, apiKey);
+        }
+
+        /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="student">The student.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date of the submission.</param>
+        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, long saveDate, int keepLastNComments, string apiKey)
+        {
+            if (student is null)
+            {
+                throw new ArgumentNullException(nameof(student));
+            }
+
+            return PushGradeAsync(student.NetId, grade, comment, saveDate, keepLastNComments, apiKey);
+        }
+
+        /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="netId">The net identifier.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date.</param>
+        /// <param name="apiKey">The API key.</param>
+        /// <returns>The http response of pushing the grade.</returns>
+        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, long saveDate, string apiKey)
+            => PushGradeAsync(netId, grade, comment, saveDate, -1, apiKey);
+
+        /// <summary>
+        /// Pushes the grade asynchronous.
+        /// </summary>
+        /// <param name="netId">The net identifier.</param>
+        /// <param name="grade">The grade.</param>
+        /// <param name="comment">The comment.</param>
+        /// <param name="saveDate">The save date of the submission.</param>
         /// <param name="apiKey">The API key.</param>
         /// <returns>The http response of pushing the grade.</returns>
         public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, string apiKey)
-        {
-            long epoch = (long)(saveDate - new DateTime(1970, 1, 1)).TotalMilliseconds;
-            return PushGradeAsync(netId, grade, comment, epoch, apiKey);
-        }
+            => PushGradeAsync(netId, grade, comment, saveDate, -1, apiKey);
 
         /// <summary>
         /// Pushes the grade asynchronous.
@@ -90,14 +157,7 @@ namespace WebLabNet
         /// <param name="apiKey">The API key.</param>
         /// <returns>The http response of pushing the grade.</returns>
         public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, DateTime saveDate, string apiKey)
-        {
-            if (student is null)
-            {
-                throw new ArgumentNullException(nameof(student));
-            }
-
-            return PushGradeAsync(student.NetId, grade, comment, saveDate, apiKey);
-        }
+            => PushGradeAsync(student, grade, comment, saveDate, -1, apiKey);
 
         /// <summary>
         /// Pushes the grade asynchronous.
@@ -109,14 +169,7 @@ namespace WebLabNet
         /// <param name="apiKey">The API key.</param>
         /// <returns>The http response of pushing the grade.</returns>
         public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, long saveDate, string apiKey)
-        {
-            if (student is null)
-            {
-                throw new ArgumentNullException(nameof(student));
-            }
-
-            return PushGradeAsync(student.NetId, grade, comment, saveDate, apiKey);
-        }
+            => PushGradeAsync(student, grade, comment, saveDate, -1, apiKey);
 
         /// <summary>
         /// Gets the submissions.
