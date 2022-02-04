@@ -1,283 +1,209 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using WebLabNet.Internal;
 
-namespace WebLabNet
+namespace WebLabNet;
+
+/// <summary>
+/// Used for interacting with WebLab.
+/// </summary>
+public class WebLab : IDisposable
 {
+    private readonly HttpClient client;
+    private readonly HttpClientHandler? handler;
+    private readonly bool ownClient;
+    private bool isDisposed;
+
     /// <summary>
-    /// Used for interacting with WebLab.
+    /// Initializes a new instance of the <see cref="WebLab"/> class.
     /// </summary>
-    public class WebLab : IDisposable
+    /// <param name="client">The HTTP client used for making requests.</param>
+    public WebLab(HttpClient client)
+        => this.client = client;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="WebLab"/> class.
+    /// </summary>
+    public WebLab()
     {
-        private readonly HttpClient client;
-        private readonly HttpClientHandler? handler;
-        private readonly bool ownClient;
-        private bool isDisposed;
+        handler = new HttpClientHandler { UseCookies = false };
+        client = new HttpClient(handler);
+        ownClient = true;
+    }
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="WebLab"/> class.
-        /// </summary>
-        /// <param name="client">The HTTP client used for making requests.</param>
-        public WebLab(HttpClient client)
-            => this.client = client;
+    /// <summary>
+    /// Gets or sets the base url.
+    /// </summary>
+    public string BaseUrl { get; set; } = "https://weblab.tudelft.nl";
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="WebLab"/> class.
-        /// </summary>
-        public WebLab()
+    /// <summary>
+    /// Sends the given request.
+    /// </summary>
+    /// <typeparam name="TRequest">The request type.</typeparam>
+    /// <typeparam name="TResponse">The response type.</typeparam>
+    /// <param name="request">The request info.</param>
+    /// <returns>The response info.</returns>
+    public async Task<ResponseInfo<TRequest, TResponse>> SendRequestAsync<TRequest, TResponse>(RequestInfo<TRequest, TResponse> request)
+        where TRequest : RequestInfo<TRequest, TResponse>
+        where TResponse : ResponseData<TRequest, TResponse>
+    {
+        string url = request.Url;
+        string queryString = string.Join("&", request.QueryParts.Select(x => $"{x.Key}={x.Value}"));
+
+        if (request.QueryParts.Any() || request.UseHmac)
         {
-            handler = new HttpClientHandler { UseCookies = false };
-            client = new HttpClient(handler);
-            ownClient = true;
+            url += "?";
+            url += queryString;
         }
 
-        /// <summary>
-        /// Gets or sets the cookie. Note that this is only used when the HttpClient instance is managed by this class.
-        /// </summary>
-        public string? Cookie { get; set; }
-
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="netId">The net identifier.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date.</param>
-        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, long saveDate, int keepLastNComments, string apiKey)
+        if (request.UseHmac)
         {
-            Dictionary<string, string> values = new Dictionary<string, string>()
-                {
-                    { "netid", netId },
-                    { "grade", grade.ToString(CultureInfo.InvariantCulture) },
-                    { "comment", comment },
-                    { "saveDate", saveDate.ToString(CultureInfo.InvariantCulture) },
-                    { "keepLastNComments", keepLastNComments.ToString(CultureInfo.InvariantCulture) },
-                };
+            if (!string.IsNullOrEmpty(queryString))
+            {
+                url += "&";
+            }
 
-            string json = JsonConvert.SerializeObject(values);
+            string hash = HmacHelper.Compute(queryString, request.ApiSecret!);
+            url += $"signature={hash}";
+        }
+
+        HttpResponseMessage? httpResponse;
+        if (request.RequestType == RequestType.Post)
+        {
+            string json = JsonConvert.SerializeObject(request.Body);
             using HttpContent content = new StringContent(json, Encoding.UTF8, "application/json");
-            return client.PostAsync($"https://weblab.tudelft.nl/pushGrade/{apiKey}", content);
+            httpResponse = await client.PostAsync(url, content).ConfigureAwait(false);
+        }
+        else
+        {
+            httpResponse = await client.GetAsync(url).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="netId">The net identifier.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey)
+        if (httpResponse is null || !httpResponse.IsSuccessStatusCode)
         {
-            long epoch = (long)(saveDate.ToUniversalTime() - new DateTime(1970, 1, 1)).TotalMilliseconds;
-            return PushGradeAsync(netId, grade, comment, epoch, keepLastNComments, apiKey);
+            return new ResponseInfo<TRequest, TResponse>((TRequest)request, false, httpResponse, null);
         }
 
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="student">The student.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey)
+        string body = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+        TResponse? data;
+#pragma warning disable
+        try
         {
-            if (student is null)
-            {
-                throw new ArgumentNullException(nameof(student));
-            }
+            data = string.IsNullOrWhiteSpace(body) ? null : JsonConvert.DeserializeObject<TResponse>(body);
+        }
+        catch
+        {
+            data = null;
+        }
+#pragma warning restore
 
-            return PushGradeAsync(student.NetId, grade, comment, saveDate, keepLastNComments, apiKey);
+        if (data is null)
+        {
+            return new ResponseInfo<TRequest, TResponse>((TRequest)request, false, httpResponse, null);
         }
 
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="student">The student.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, long saveDate, int keepLastNComments, string apiKey)
+        ResponseInfo<TRequest, TResponse> result = new ResponseInfo<TRequest, TResponse>((TRequest)request, true, httpResponse, data);
+        data.ResponseInfo = result;
+        return result;
+    }
+
+    /// <summary>
+    /// Pushes the grade asynchronous.
+    /// </summary>
+    /// <param name="netId">The net identifier.</param>
+    /// <param name="grade">The grade.</param>
+    /// <param name="comment">The comment.</param>
+    /// <param name="saveDate">The save date of the submission.</param>
+    /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The http response of pushing the grade.</returns>
+    public Task<ResponseInfo<PushGradeNetidRequestInfo, PushGradeNetidResponseData>> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey, string? apiSecret = null)
+        => SendRequestAsync(new PushGradeNetidRequestInfo(this, apiKey, apiSecret, grade, comment, saveDate, keepLastNComments, netId));
+
+    /// <summary>
+    /// Pushes the grade asynchronous.
+    /// </summary>
+    /// <param name="netId">The net identifier.</param>
+    /// <param name="grade">The grade.</param>
+    /// <param name="comment">The comment.</param>
+    /// <param name="saveDate">The save date of the submission.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The http response of pushing the grade.</returns>
+    public Task<ResponseInfo<PushGradeNetidRequestInfo, PushGradeNetidResponseData>> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, string apiKey, string? apiSecret = null)
+        => PushGradeAsync(netId, grade, comment, saveDate, -1, apiKey, apiSecret);
+
+    /// <summary>
+    /// Pushes the grade asynchronous.
+    /// </summary>
+    /// <param name="student">The WebLab ID of the student.</param>
+    /// <param name="grade">The grade.</param>
+    /// <param name="comment">The comment.</param>
+    /// <param name="saveDate">The save date of the submission.</param>
+    /// <param name="keepLastNComments">The number of comments to keep, 0 keeps all comments.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The http response of pushing the grade.</returns>
+    public Task<ResponseInfo<PushGradeWebLabIdRequestInfo, PushGradeWebLabIdResponseData>> PushGradeAsync(int student, double grade, string comment, DateTime saveDate, int keepLastNComments, string apiKey, string? apiSecret = null)
+        => SendRequestAsync(new PushGradeWebLabIdRequestInfo(this, apiKey, apiSecret, grade, comment, saveDate, keepLastNComments, student));
+
+    /// <summary>
+    /// Pushes the grade asynchronous.
+    /// </summary>
+    /// <param name="student">The WebLab ID of the student.</param>
+    /// <param name="grade">The grade.</param>
+    /// <param name="comment">The comment.</param>
+    /// <param name="saveDate">The save date of the submission.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The http response of pushing the grade.</returns>
+    public Task<ResponseInfo<PushGradeWebLabIdRequestInfo, PushGradeWebLabIdResponseData>> PushGradeAsync(int student, double grade, string comment, DateTime saveDate, string apiKey, string? apiSecret = null)
+        => PushGradeAsync(student, grade, comment, saveDate, -1, apiKey, apiSecret);
+
+    /// <summary>
+    /// Gets the submissions for the given assignment.
+    /// </summary>
+    /// <param name="assignmentId">The assignment ID to request the submissions for.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The response of requesting the submissions.</returns>
+    public Task<ResponseInfo<SubmissionsRequestInfo, SubmissionsResponseData>> GetSubmissionsAsync(int assignmentId, string apiKey, string? apiSecret = null)
+        => SendRequestAsync(new SubmissionsRequestInfo(this, apiKey, apiSecret, assignmentId));
+
+    /// <summary>
+    /// Gets the submissions for the given assignment.
+    /// </summary>
+    /// <param name="assignmentId">The assignment ID to request the submissions for.</param>
+    /// <param name="student">The WebLab ID of the student.</param>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="apiSecret">The API secret.</param>
+    /// <returns>The response of requesting the submissions.</returns>
+    public Task<ResponseInfo<SubmissionRequestInfo, SubmissionResponseData>> GetSubmissionAsync(int assignmentId, int student, string apiKey, string? apiSecret = null)
+        => SendRequestAsync(new SubmissionRequestInfo(this, apiKey, apiSecret, student, assignmentId));
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases unmanaged and - optionally - managed resources.
+    /// </summary>
+    /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!isDisposed && disposing && ownClient)
         {
-            if (student is null)
-            {
-                throw new ArgumentNullException(nameof(student));
-            }
-
-            return PushGradeAsync(student.NetId, grade, comment, saveDate, keepLastNComments, apiKey);
-        }
-
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="netId">The net identifier.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, long saveDate, string apiKey)
-            => PushGradeAsync(netId, grade, comment, saveDate, -1, apiKey);
-
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="netId">The net identifier.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(string netId, double grade, string comment, DateTime saveDate, string apiKey)
-            => PushGradeAsync(netId, grade, comment, saveDate, -1, apiKey);
-
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="student">The student.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, DateTime saveDate, string apiKey)
-            => PushGradeAsync(student, grade, comment, saveDate, -1, apiKey);
-
-        /// <summary>
-        /// Pushes the grade asynchronous.
-        /// </summary>
-        /// <param name="student">The student.</param>
-        /// <param name="grade">The grade.</param>
-        /// <param name="comment">The comment.</param>
-        /// <param name="saveDate">The save date of the submission.</param>
-        /// <param name="apiKey">The API key.</param>
-        /// <returns>The http response of pushing the grade.</returns>
-        public Task<HttpResponseMessage> PushGradeAsync(Student student, double grade, string comment, long saveDate, string apiKey)
-            => PushGradeAsync(student, grade, comment, saveDate, -1, apiKey);
-
-        /// <summary>
-        /// Gets the submissions.
-        /// </summary>
-        /// <param name="assignmentId">The id used by weblab for the assignment.</param>
-        /// <returns>The submissions.</returns>
-        public Task<IEnumerable<SubmissionInfo>> GetSubmissionsAsync(int assignmentId)
-            => GetSubmissionsAsync(assignmentId.ToString(CultureInfo.InvariantCulture));
-
-        /// <summary>
-        /// Gets the submissions.
-        /// </summary>
-        /// <param name="assignmentId">The id used by weblab for the assignment.</param>
-        /// <returns>The submissions.</returns>
-        public async Task<IEnumerable<SubmissionInfo>> GetSubmissionsAsync(string assignmentId)
-        {
-            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://weblab.tudelft.nl/assignment/{assignmentId}/submissions");
-            request.Headers.Add("Cookie", Cookie);
-            using HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false);
-            string result = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return await ParserHelper.ParseSubmissions(result, assignmentId).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="url">The URL.</param>
-        /// <returns>The submitted code.</returns>
-        [SuppressMessage("Microsoft.Design", "CA1054", Justification = "We want to maintain the url as a string.")]
-        public async Task<Submission> GetSubmissionAsync(string url)
-        {
-            using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("Cookie", Cookie);
-            using HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false);
-            string result = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            return await ParserHelper.ParseSubmission(result).ConfigureAwait(false);
-        }
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="submission">The submission to retrieve.</param>
-        /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmissionAsync(SubmissionInfo submission)
-        {
-            if (submission is null)
-            {
-                throw new ArgumentNullException(nameof(submission));
-            }
-
-            return GetSubmissionAsync(submission.Url);
-        }
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="assignmentId">The ID of the assingment.</param>
-        /// <param name="weblabId">The ID of the weblab user.</param>
-        /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmissionAsync(string assignmentId, string weblabId)
-            => GetSubmissionAsync($"https://weblab.tudelft.nl/x/y/assignment/{assignmentId}/submission/{weblabId}");
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="assignmentId">The ID of the assingment.</param>
-        /// <param name="weblabId">The ID of the weblab user.</param>
-        /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmissionAsync(int assignmentId, int weblabId)
-            => GetSubmissionAsync(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId.ToString(CultureInfo.InvariantCulture));
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="assignmentId">The ID of the assingment.</param>
-        /// <param name="weblabId">The ID of the weblab user.</param>
-        /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmissionAsync(string assignmentId, int weblabId)
-            => GetSubmissionAsync(assignmentId, weblabId.ToString(CultureInfo.InvariantCulture));
-
-        /// <summary>
-        /// Gets the submitted code at the given url.
-        /// </summary>
-        /// <param name="assignmentId">The ID of the assingment.</param>
-        /// <param name="weblabId">The ID of the weblab user.</param>
-        /// <returns>The submitted code.</returns>
-        public Task<Submission> GetSubmissionAsync(int assignmentId, string weblabId)
-            => GetSubmissionAsync(assignmentId.ToString(CultureInfo.InvariantCulture), weblabId);
-
-        /// <inheritdoc/>
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        /// <summary>
-        /// Releases unmanaged and - optionally - managed resources.
-        /// </summary>
-        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!isDisposed && disposing && ownClient)
-            {
-                handler?.Dispose();
-                client.Dispose();
-                isDisposed = true;
-            }
+            handler?.Dispose();
+            client.Dispose();
+            isDisposed = true;
         }
     }
 }

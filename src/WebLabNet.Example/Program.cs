@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace WebLabNet.Example
@@ -17,16 +15,26 @@ namespace WebLabNet.Example
         /// <returns>The task of running the application.</returns>
         public static async Task Main()
         {
-            using WebLab webLab = new WebLab
+            using WebLab webLab = new WebLab();
+
+            string apiKey = File.ReadAllText("apikey.txt");
+            string apiSecret = File.ReadAllText("apisecret.txt");
+            string gradeApiKey = File.ReadAllText("gradeapikey.txt");
+
+            var submissions = await webLab.GetSubmissionsAsync(90830, apiKey, apiSecret).ConfigureAwait(false);
+            if (submissions.Success)
             {
-                Cookie = File.ReadAllText("cookie.txt"),
-            };
-
-            IEnumerable<SubmissionInfo> submissions = await webLab.GetSubmissionsAsync(67542).ConfigureAwait(false);
-
-            SubmissionInfo submissionInfo = submissions.First(x => x.Student.NetId == "wjbaartman");
-            Submission submission = await webLab.GetSubmissionAsync(submissionInfo).ConfigureAwait(false);
-            Console.WriteLine(submission);
+                foreach (var submissionInfo in submissions.Data!.Submissions)
+                {
+                    var submission = await submissionInfo.GetSubmissionAsync().ConfigureAwait(false);
+                    var data = submission.Data;
+                    if (data is not null && data.Student == 41321)
+                    {
+                        Console.WriteLine(data.SolutionCode);
+                        await data.PushGradeAsync(7, "TEST", gradeApiKey).ConfigureAwait(false);
+                    }
+                }
+            }
         }
     }
 }
